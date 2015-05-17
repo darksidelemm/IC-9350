@@ -17,3 +17,8 @@ Some Notes:
     attiny.menu.clock.external5.bootloader.high_fuses=0xdf
     attiny.menu.clock.external5.bootloader.extended_fuses=0xff
     attiny.menu.clock.external5.build.f_cpu=5000000L
+
+TODO
+----
+* Handle scan mode (tuner preamp on) appropriately. The only indicators we have from the Icom are 'tune' and 'tuner reset'. Since it takes the 9350 about 10 seconds to finish 'homing' the stepper upon entering scan mode, it's not such a good idea to go into scan mode on every tuner reset.
+* Upload PCB & schematic designs for the interface PCB.

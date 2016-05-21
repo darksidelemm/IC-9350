@@ -1,21 +1,34 @@
 /*
-    Icom IC-7000/706 to Codan 9350 Adaptor Software
+    Icom IC-7000/706 to Codan 9350 Adaptor Software 
   
-    Copyright (C) 2015 Mark Jessop <vk5qi@rfhead.net>
+    Copyright (C) 2016 Mark Jessop <vk5qi@rfhead.net>
+
+    Changelog:
+      - v1.0.1: Fix the delays to work with a 8MHz crystal. Should also now work with
+                any clock speed Arduino's delay functions support.
 
     Some Notes:
       - I used Arduino 1.6.4 to compile this code initially.
       - I'm using board definitions from here: http://highlowtech.org/?p=1695
-      - I modified the boards.txt file (~/.arduino15/packages/attiny/hardware/avr/1.0.1/boards.txt)
-        to add a 5MHz option. VK5ZM's board actually runs at 4.9125MHz, but it's close enough.
-        The added section was:
+      - New VK5ZM boards have 8MHz crystals, so the 8MHz (external) Clock option
+        from the attiny board selection is appropriate.
+      - For the correct fuse bits to be written, you first need to 'Burn Bootloader'
+        within Arduino (though it doesn't actually burn a bootloader), then upload
+        the code using an ISP (i.e. Ctrl + Shift + U)
 
-        attiny.menu.clock.external5=5 MHz (external)
-        attiny.menu.clock.external5.bootloader.low_fuses=0xfe
-        attiny.menu.clock.external5.bootloader.high_fuses=0xdf
-        attiny.menu.clock.external5.bootloader.extended_fuses=0xff
-        attiny.menu.clock.external5.build.f_cpu=5000000L
+    Interface PCB through to 9350 Pin Connections:
+    - NGTs and Envoys use the 6-way 'microphone' connector.
+    - Older codan rigs (9323, 8528) use a DB15 connector.
+    - The 9350 itself uses MIL-Spec Amphenol connector
 
+    Function        9350 Pin        6-way Pin       DB15 Pin        Interface PCB Pin
+    ---------------------------------------------------------------------------------
+    +12V            A (Red)         4               12+13           4
+    Earth           B (Black)       6               14+15           6
+    Tune            C (Blue)        1               4               1
+    Scan            D (Green)       2               5               2
+    Tune Status     E (Yellow)      3               11              3
+    Not Connected   F
 
     The MIT License (MIT)
 
@@ -39,6 +52,7 @@
 
 */
 
+
 // Pin definitions for VK5ZM designed ATTiny44 interface PCB.
 
 #define ICOM_START    8 // Attiny44 Pin 5 - Pulled high 3.3K resistor.
@@ -50,9 +64,6 @@
 #define CODAN_SCAN    2 // ATTiny44 Pin 11 - Output via transistor network. Inverted output.
 
 #define LED           0 // ATTiny44 Pin 13 - LED. Pull low to activate.
-
-
-// Due to Arduino weirdness, all delay times need to be 1/8 the desired time.
 
 
 void setup(){
@@ -68,6 +79,7 @@ void setup(){
     pinMode(ICOM_KEY, INPUT);
     pinMode(CODAN_TUNEIO, INPUT);
     pinMode(CODAN_TUNE, INPUT);
+
 }
 
 void loop(){
@@ -75,7 +87,7 @@ void loop(){
     while(digitalRead(ICOM_START)){}
 
     // Delay for 200ms. This allows us to check if the Icom radio has requested a tune, or a tuner reset.
-    delay(25); 
+    delay(200); 
 
     // Check state of ICOM_START line.
     // If high, the Icom has requested a tuner reset. We could put the Codan 9350 into scan mode now.
@@ -88,12 +100,12 @@ void loop(){
     }
 
     // Delay for a short time, so we don't re-tune accidentally.
-    delay(50);
+    delay(400);
 }
 
 void tune(){
-    // Turn on Indicator LED.
-    digitalWrite(LED, LOW);
+    // Turn off Indicator LED.
+    digitalWrite(LED, HIGH);
 
     // Make sure we are not in scan mode.
     digitalWrite(CODAN_SCAN, LOW);
@@ -102,7 +114,7 @@ void tune(){
     digitalWrite(ICOM_KEY, HIGH);
 
     // Wait a bit for the Icom to start producing RF.
-    delay(43); // Approx 350ms
+    delay(350); // Approx 350ms
 
     // Now we start to talk to the Codan tuner.
 
@@ -112,23 +124,29 @@ void tune(){
 
     // 9350 will now hold this line low until it finishes tuning.
     // Wait a little bit (300ms-ish) before releasing the line
-    delay(40);
+    delay(300);
 
     // Release the line.
     pinMode(CODAN_TUNE, INPUT);
 
-    delay(4);// Wait 30ms before trying to read the CODAN_TUNE line.
+    delay(30);// Wait 30ms before trying to read the CODAN_TUNE line.
 
     // Wait until CODAN_TUNE goes high.
-    while(digitalRead(CODAN_TUNE)==0){}
+    while(digitalRead(CODAN_TUNE)==0){
+        // Flash the LED while we wait.
+        digitalWrite(LED, LOW); // On
+        delay(100);
+        digitalWrite(LED, HIGH); // Off
+        delay(100);
+    }
 
     // When line goes high, read CODAN_TUNEIO line immediately.
     // This line indicates if the tune has failed or succeeded
     if(digitalRead(CODAN_TUNEIO)){
       // Tune OK. Release ICOM Key line.
       digitalWrite(ICOM_KEY, LOW);
-      // Turn off LED.
-      digitalWrite(LED, HIGH);
+      // Turn LED On and leave on.
+      digitalWrite(LED, LOW);
     }else{
       // Tune failed. Run through tune failed sequence.
       tune_failed();
@@ -139,10 +157,20 @@ void tune_failed(){
     // We can tell the Icom that the tune has failed by releasing ICOM_KEY line for 20ms, 
     // holding it low for 200ms, then releasing it again.
     digitalWrite(ICOM_KEY, LOW);
-    delayMicroseconds(25000); // 20ms
+    delayMicroseconds(20000); // 20ms
     digitalWrite(ICOM_KEY, HIGH);
-    delay(25); // 200ms
+    delay(200); // 200ms
     digitalWrite(ICOM_KEY, LOW);
+
+    // Blink LED, then turn LED off.
+    digitalWrite(LED, LOW);
+    delay(200);
+    digitalWrite(LED, HIGH);
+    delay(200);
+    digitalWrite(LED, LOW);
+    delay(200);
+    digitalWrite(LED, HIGH);
+    delay(200);
 }
 
 void scan_mode(){
@@ -151,11 +179,11 @@ void scan_mode(){
 
     // Fast-blink LED.
     digitalWrite(LED, LOW);
-    delay(7);
+    delay(200);
     digitalWrite(LED, HIGH);
-    delay(7);
+    delay(200);
     digitalWrite(LED, LOW);
-    delay(7);
+    delay(200);
     digitalWrite(LED, HIGH);
-    delay(7);
+    delay(200);
 }

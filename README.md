@@ -8,15 +8,8 @@ Included in this repository (soon) is an interface board which will handle the l
 Some Notes:
   * I used Arduino 1.6.4 to compile this code initially.
   * I'm using board definitions from here: http://highlowtech.org/?p=1695
-  * I modified the boards.txt file (~/.arduino15/packages/attiny/hardware/avr/1.0.1/boards.txt)
-    to add a 5MHz option. VK5ZM's board actually runs at 4.9125MHz, but it's close enough.
-    The added section was:
+  * Refer to the comment block at the top of Icom9350.ino for more information, including wiring info.
 
-    attiny.menu.clock.external5=5 MHz (external)
-    attiny.menu.clock.external5.bootloader.low_fuses=0xfe
-    attiny.menu.clock.external5.bootloader.high_fuses=0xdf
-    attiny.menu.clock.external5.bootloader.extended_fuses=0xff
-    attiny.menu.clock.external5.build.f_cpu=5000000L
 
 TODO
 ----
